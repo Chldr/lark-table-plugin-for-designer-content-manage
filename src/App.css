@@ -58,6 +58,12 @@ main {
     width: 100%;
     line-height: 1.8;
   }
+  .tip.info {
+    color: rgb(20, 86, 240);
+    margin-left: 0;
+    font-size: 15px;
+    font-weight: 500;
+  }
 
   /* .tip::before {
     content: "*";
@@ -91,5 +97,19 @@ main {
     width: 100%;
     height: auto;
     margin: 12px 0;
+  }
+
+  .select {
+    min-width: 150px;
+    height: 32px;
+    flex: 1;
+  }
+
+  .form-item {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    margin: 20px 0;
   }
 }

@@ -1,35 +1,18 @@
 import { ReactNode, useEffect, useState } from "react";
 import "./App.css";
-import { IOpenAutoNumber, ITable, bitable } from "@lark-base-open/js-sdk";
+import {
+  FieldType,
+  IOpenAutoNumber,
+  ITable,
+  bitable,
+} from "@lark-base-open/js-sdk";
 import classNames from "classnames";
+import { TableType, TableDataType } from "./types";
+import { tableConfig, SERVICE_ORIGIN } from "./constants";
+import { tableNames } from "./types";
 
-const serviceAPI = "https://gw.test.newdesigner.ai/designer-service";
-const tableNames = ["模版", "预设(IPAdapter)", "风格"] as const;
-type TableType = (typeof tableNames)[number];
-const tableConfig: Record<
-  TableType,
-  {
-    apiPath: string;
-  }
-> = {
-  模版: {
-    apiPath: "/tool/template",
-  },
-  "预设(IPAdapter)": {
-    apiPath: "/tool/preset",
-  },
-  风格: {
-    apiPath: "/tool/style",
-  },
-};
-
-const APICheckTemplate = `${serviceAPI}/tool/check/template`;
 export default function App() {
-  const [curTable, setCurTable] = useState<{
-    id: string;
-    name: string;
-    table: ITable | null;
-  }>({
+  const [curTable, setCurTable] = useState<TableDataType>({
     id: "",
     name: "",
     table: null,
@@ -37,15 +20,17 @@ export default function App() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [templateList, setTemplateList] = useState<any[]>([]);
   const [selectedCode, setSelectedCode] = useState<string>("");
-
-  console.log("curTable: ", curTable);
   // upload
   const [errorMsg, setErrorMsg] = useState<ReactNode>(null);
   // check
   const [checkTemplatePreview, setCheckTemplatePreview] = useState("");
   const [isChecking, setIsChecking] = useState(false);
-  console.log("isChecking: ", isChecking);
   const [checkError, setCheckError] = useState("");
+  // code field
+  const [codeFieldName, setCodeFieldName] = useState("code");
+  const [codeFieldList, setCodeFieldList] = useState<
+    { id: string; name: string }[]
+  >([]);
 
   const getTableData = async (_tableId: string | null) => {
     let tableId = _tableId;
@@ -64,7 +49,9 @@ export default function App() {
   };
 
   const getTemplateCodes = async (table: ITable) => {
-    const codeField = await table.getFieldByName("code");
+    console.log("codeFieldName: ", codeFieldName);
+
+    const codeField = await table.getFieldByName(codeFieldName);
     const allRecords = await codeField.getFieldValueList();
     const sortList = allRecords.filter(
       (item) => !!(item.value as IOpenAutoNumber).value
@@ -80,11 +67,32 @@ export default function App() {
     return sortList;
   };
 
+  const getPrimaryFieldName = async (tableData: TableDataType) => {
+    if (tableData.table) {
+      const allPrimaryFields = await tableData.table.getFieldListByType(
+        FieldType.AutoNumber
+      );
+      const list = [];
+      for (const item of allPrimaryFields) {
+        const name = await item.getName();
+        list.push({
+          id: item.id,
+          name: name,
+        });
+      }
+      return list;
+    }
+    return [];
+  };
+
   async function init() {
     const tableData = await getTableData(null);
     if (tableData) {
       setCurTable(tableData);
-      getTemplateCodes(tableData.table);
+      const allPrimaryFields = await getPrimaryFieldName(tableData);
+      setCodeFieldList(allPrimaryFields);
+      const defaultCodeFieldName = allPrimaryFields[0]?.name;
+      setCodeFieldName(defaultCodeFieldName ?? "");
     }
   }
 
@@ -94,8 +102,8 @@ export default function App() {
       const data = event.data;
       const tableData = await getTableData(data.tableId);
       if (tableData) {
-        setCurTable(tableData);
         reset();
+        init();
       }
     });
 
@@ -103,6 +111,12 @@ export default function App() {
       off();
     };
   }, []);
+
+  useEffect(() => {
+    if (curTable?.table) {
+      getTemplateCodes(curTable.table);
+    }
+  }, [codeFieldName, curTable]);
 
   useEffect(() => {
     if (curTable.name === "模版" && curTable.table) {
@@ -132,7 +146,51 @@ export default function App() {
     setCheckTemplatePreview("");
   };
 
-  const process = async () => {
+  const isCheckable = Boolean(
+    curTable?.name && tableConfig[curTable.name as TableType]?.checkApi
+  );
+  async function handleCheck() {
+    if (isChecking || !isCheckable) return;
+    const api =
+      curTable.name && tableConfig[curTable.name as TableType]?.checkApi;
+    if (!api) {
+      setCheckError("当前表格没有检查配置");
+      return;
+    }
+    setIsChecking(true);
+    setCheckError("");
+    setCheckTemplatePreview("");
+    const selection = await bitable.base.getSelection();
+
+    fetch(api, {
+      method: "POST",
+      body: JSON.stringify({
+        app_token: selection.baseId,
+        table_id: selection.tableId,
+        view_id: selection.viewId,
+        code: selectedCode,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.code === 0 && res.data) {
+          setCheckTemplatePreview(res.data);
+        } else {
+          setCheckError(res.msg);
+        }
+      })
+      .catch(() => {
+        setCheckError("模版检查出错");
+      })
+      .finally(() => {
+        setIsChecking(false);
+      });
+  }
+
+  const handleUploadTable = async () => {
     // Get the current selection
     const selection = await bitable.base.getSelection();
     console.log("selection: ", selection);
@@ -156,7 +214,11 @@ export default function App() {
 
     const apiPath = tableConfig[name].apiPath;
 
-    fetch(`${serviceAPI}${apiPath}`, {
+    if (!apiPath) {
+      setErrorMsg("当前表格没有对应上传配置");
+      return;
+    }
+    fetch(`${SERVICE_ORIGIN}${apiPath}`, {
       method: "POST",
       body: JSON.stringify({
         app_token: selection.baseId,
@@ -173,7 +235,11 @@ export default function App() {
 
         if (res.code === 1) {
           setErrorMsg("请检查表格内容");
-        } else if (res.data) {
+        } else if (
+          res.data &&
+          res.data instanceof Object &&
+          Object.keys(res.data).length
+        ) {
           const reactNodes = Object.entries(res.data).map(([code, msg]) => {
             return (
               <span>
@@ -195,94 +261,87 @@ export default function App() {
     <main>
       <h3 className="title">当前选中表格：{curTable.name}</h3>
 
-      {curTable.name === "模版" ? (
-        <div className="template-check-wrapper">
-          <fieldset>
-            <legend>选择要校验的模版编号:</legend>
-            {templateList.map((item) => (
-              <div key={item.record_id} className="template-check-item">
-                <input
-                  type="radio"
-                  id={item.value.value}
-                  name={item.value.value}
-                  checked={selectedCode === item.value.value}
-                  onChange={() => {
-                    setSelectedCode(item.value.value);
-                  }}
+      {isCheckable ? (
+        <>
+          <div className="form-item">
+            <label>选择编号字段：</label>
+
+            <select
+              className="select"
+              value={codeFieldName}
+              onChange={(e) => {
+                console.log("e: ", e);
+                setCodeFieldName(e.target.value);
+              }}
+            >
+              {codeFieldList?.length
+                ? codeFieldList.map((field) => (
+                    <option value={field.id} label={field.name} key={field.id}>
+                      {field.name}
+                    </option>
+                  ))
+                : null}
+            </select>
+          </div>
+          <div className="template-check-wrapper">
+            <fieldset>
+              <legend>选择要校验的模版编号:</legend>
+              {templateList.map((item) => (
+                <div key={item.record_id} className="template-check-item">
+                  <input
+                    type="radio"
+                    id={item.value.value}
+                    name={item.value.value}
+                    checked={selectedCode === item.value.value}
+                    onChange={() => {
+                      setSelectedCode(item.value.value);
+                    }}
+                  />
+                  <label htmlFor={item.value.value}>{item.value.value}</label>
+                </div>
+              ))}
+            </fieldset>
+
+            <button
+              className={classNames("export-btn", {
+                loading: isChecking,
+              })}
+              disabled={!selectedCode}
+              onClick={handleCheck}
+            >
+              {isChecking ? (
+                <img
+                  src="https://nolipix-js.nolibox.com/custom/image/board_image_loading.png"
+                  className="button-loading-icon"
                 />
-                <label htmlFor={item.value.value}>{item.value.value}</label>
-              </div>
-            ))}
-          </fieldset>
+              ) : null}
+              {isChecking ? "检查中..." : `检查模版 ${selectedCode}`}
+            </button>
 
-          <button
-            className={classNames("export-btn", {
-              loading: isChecking,
-            })}
-            disabled={!selectedCode}
-            onClick={async () => {
-              if (isChecking) return;
-              setIsChecking(true);
-              setCheckError("");
-              setCheckTemplatePreview("");
-              const selection = await bitable.base.getSelection();
-
-              fetch(APICheckTemplate, {
-                method: "POST",
-                body: JSON.stringify({
-                  app_token: selection.baseId,
-                  table_id: selection.tableId,
-                  view_id: selection.viewId,
-                  code: selectedCode,
-                }),
-                headers: {
-                  "Content-Type": "application/json",
-                },
-              })
-                .then((res) => res.json())
-                .then((res) => {
-                  if (res.code === 0 && res.data) {
-                    setCheckTemplatePreview(res.data);
-                  } else {
-                    setCheckError(res.msg);
-                  }
-                })
-                .catch(() => {
-                  setCheckError("模版检查出错");
-                })
-                .finally(() => {
-                  setIsChecking(false);
-                });
-            }}
-          >
-            {isChecking ? (
-              <img
-                src="https://nolipix-js.nolibox.com/custom/image/board_image_loading.png"
-                className="button-loading-icon"
-              />
+            {checkTemplatePreview ? (
+              <img src={checkTemplatePreview} className="template-preview" />
             ) : null}
-            {isChecking ? "检查中..." : `检查模版 ${selectedCode}`}
-          </button>
 
-          {checkTemplatePreview ? (
-            <img src={checkTemplatePreview} className="template-preview" />
-          ) : null}
+            {checkError ? (
+              <p className="tip">
+                检查模版失败，错误信息如下：
+                <br />
+                {checkError}
+              </p>
+            ) : null}
 
-          {checkError ? (
-            <p className="tip">
-              检查模版失败，错误信息如下：
-              <br />
-              {checkError}
-            </p>
-          ) : null}
-
-          <hr className="divider" />
-        </div>
+            <hr className="divider" />
+          </div>
+        </>
       ) : null}
 
-      <button className="export-btn" onClick={process}>
-        上传表格内容
-      </button>
+      {Boolean(tableConfig[curTable.name as TableType]?.apiPath) ? (
+        <button className="export-btn" onClick={handleUploadTable}>
+          上传表格内容
+        </button>
+      ) : (
+        <p className="tip info">当前表格没有对应上传接口</p>
+      )}
       {errorMsg ? (
         <p className="tip">
           上传失败，错误信息如下：
