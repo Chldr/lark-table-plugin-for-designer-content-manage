@@ -9,4 +9,7 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
   },
+  build: {
+    assetsDir: "lark-table-plugin-for-designer-content-manage",
+  },
 });
