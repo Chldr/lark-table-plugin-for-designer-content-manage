@@ -1,9 +1,11 @@
 import { TableType } from "./types";
 
 export const SERVICE_ORIGIN = "https://gw.test.newdesigner.ai/designer-service";
-const APICheckTemplate = `${SERVICE_ORIGIN}/tool/check/template`;
-const APICheckInvitationAndPostcard = `${SERVICE_ORIGIN}/tool/poster/check/template`;
-const APICheckAIPoster = `${SERVICE_ORIGIN}/tool/poster/prompt/check/template`;
+const APICheckTemplate = `${SERVICE_ORIGIN}/tool/check/card_template`;
+const APICheckInvitation = `${SERVICE_ORIGIN}/tool/check/invitation_template`;
+const APICheckPostcard = `${SERVICE_ORIGIN}/tool/check/postcard_template`;
+
+const APICheckAIPoster = `${SERVICE_ORIGIN}/tool/check/general_template`;
 export const tableConfig: Record<
   TableType,
   {
@@ -22,10 +24,10 @@ export const tableConfig: Record<
     apiPath: "/tool/style",
   },
   "AI poster模版- Invitation": {
-    checkApi: APICheckInvitationAndPostcard,
+    checkApi: APICheckInvitation,
   },
   "AI poster模版-Postcard": {
-    checkApi: APICheckInvitationAndPostcard,
+    checkApi: APICheckPostcard,
   },
   "AI poster模版-Poster": {
     checkApi: APICheckAIPoster,
