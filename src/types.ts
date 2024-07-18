@@ -10,7 +10,9 @@ export const tableNames = [
   "模版",
   "预设(IPAdapter)",
   "风格",
-  "AI poster模版",
+  "AI poster模版- Invitation",
+  "AI poster模版-Postcard",
+  "AI poster模版-Poster",
   "AI poster场景",
   "AI poster预设",
 ] as const;
