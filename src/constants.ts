@@ -25,12 +25,15 @@ export const tableConfig: Record<
   },
   "AI poster模版- Invitation": {
     checkApi: APICheckInvitation,
+    apiPath: `${SERVICE_ORIGIN}/tool/add/invitation_template`,
   },
   "AI poster模版-Postcard": {
     checkApi: APICheckPostcard,
+    apiPath: `${SERVICE_ORIGIN}/tool/add/postcard_template`,
   },
   "AI poster模版-Poster": {
     checkApi: APICheckAIPoster,
+    apiPath: `${SERVICE_ORIGIN}/tool/add/general_template`,
   },
   "AI poster场景": {},
   "AI poster预设": {},
